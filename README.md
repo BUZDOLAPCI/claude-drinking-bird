@@ -1,6 +1,7 @@
 # Claude Drinking Bird
 
-A background tool that automatically approves Claude Code permission prompts. Like a drinking bird toy that keeps pressing "Yes" for you.
+A background tool that automatically approves Claude Code permission prompts for situations where --dangerously-skip-permissions is not available for some (suspicious) reason.
+![catfix-funny](https://github.com/user-attachments/assets/dcd4a1c8-525f-45b6-b0ec-6b278ca4bf63)
 
 ## Features
 
@@ -13,7 +14,7 @@ A background tool that automatically approves Claude Code permission prompts. Li
   - Only activates when a Claude window is in focus (title starts with ✳)
   - Configurable confidence threshold (default 0.9)
   - Cooldown between approvals to prevent rapid-fire
-- **Multiple reference images**: Support for different button appearances
+- **Multiple reference images**: Support for different themes etc
 - **Audio feedback**: Plays a sound when auto-approving
 - **Optimized scanning**: Configurable scan region to reduce CPU usage
 
