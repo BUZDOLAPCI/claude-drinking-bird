@@ -1,6 +1,7 @@
 # Claude Drinking Bird
 
-A background tool that automatically approves Claude Code permission prompts for situations where --dangerously-skip-permissions is not available for some (suspicious) reason.
+A background tool that automatically approves Claude Code permission prompts for situations where --dangerously-skip-permissions is not available for some reason.
+
 ![catfix-funny](https://github.com/user-attachments/assets/dcd4a1c8-525f-45b6-b0ec-6b278ca4bf63)
 
 ## Features
