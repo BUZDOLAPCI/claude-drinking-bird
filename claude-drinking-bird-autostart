@@ -1,0 +1,44 @@
+#!/bin/bash
+#
+# Claude Drinking Bird - Autostart Manager
+#
+
+AUTOSTART_FILE="$HOME/.config/autostart/claude-drinking-bird.desktop"
+
+usage() {
+    echo "Usage: claude-drinking-bird-autostart [enable|disable|status]"
+    echo ""
+    echo "Commands:"
+    echo "  enable   - Enable autostart on boot"
+    echo "  disable  - Disable autostart on boot"
+    echo "  status   - Show current autostart status"
+    exit 1
+}
+
+if [[ ! -f "$AUTOSTART_FILE" ]]; then
+    echo "Error: Autostart file not found."
+    echo "Please run the installer first."
+    exit 1
+fi
+
+case "$1" in
+    enable)
+        sed -i 's/X-GNOME-Autostart-enabled=false/X-GNOME-Autostart-enabled=true/' "$AUTOSTART_FILE"
+        echo "Autostart enabled."
+        echo "Claude Drinking Bird will start automatically on next login."
+        ;;
+    disable)
+        sed -i 's/X-GNOME-Autostart-enabled=true/X-GNOME-Autostart-enabled=false/' "$AUTOSTART_FILE"
+        echo "Autostart disabled."
+        ;;
+    status)
+        if grep -q "X-GNOME-Autostart-enabled=true" "$AUTOSTART_FILE"; then
+            echo "Autostart: ENABLED"
+        else
+            echo "Autostart: DISABLED"
+        fi
+        ;;
+    *)
+        usage
+        ;;
+esac

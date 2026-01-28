@@ -1,0 +1,205 @@
+# Claude Drinking Bird
+
+A background tool that automatically approves Claude Code permission prompts. Like a drinking bird toy that keeps pressing "Yes" for you.
+
+## Features
+
+- **Auto-approval**: Detects permission prompts and sends Enter key to approve
+- **System tray integration**: Shows status in Ubuntu top bar
+  - 🟢 Green: Active and scanning
+  - 🟡 Yellow: Paused (Claude window not focused)
+  - 🔴 Red: Disabled
+- **Safety features**:
+  - Only activates when a Claude window is in focus (title starts with ✳)
+  - Configurable confidence threshold (default 0.9)
+  - Cooldown between approvals to prevent rapid-fire
+- **Multiple reference images**: Support for different button appearances
+- **Audio feedback**: Plays a sound when auto-approving
+- **Optimized scanning**: Configurable scan region to reduce CPU usage
+
+## Installation
+
+### Quick Install (Ubuntu)
+
+```bash
+# Clone or download this repository
+cd claude-drinking-bird
+
+# Run the installer
+chmod +x install.sh
+./install.sh
+```
+
+### Manual Installation
+
+1. **Install system dependencies:**
+
+```bash
+sudo apt update
+sudo apt install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-gi \
+    gir1.2-appindicator3-0.1 \
+    libgirepository1.0-dev \
+    scrot \
+    xdotool \
+    slop \
+    pulseaudio-utils
+```
+
+2. **Create a virtual environment and install Python packages:**
+
+```bash
+# Use --system-site-packages to access system-installed python3-gi
+python3 -m venv --system-site-packages venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+3. **Run the application:**
+
+```bash
+python3 claude_drinking_bird.py
+```
+
+## Setup Reference Images
+
+On first run, you'll be prompted to provide reference images. These are screenshots of the button/element that should trigger auto-approval.
+
+1. Take a screenshot of the "Yes" or approval button in Claude Code
+2. Crop it to just the button
+3. Save it to: `~/.config/claude-drinking-bird/reference_images/`
+
+You can add multiple reference images for different themes or button states.
+
+**Tip**: Use a tool like `gnome-screenshot -a` to capture a specific area.
+
+## Usage
+
+### Starting the Application
+
+```bash
+claude-drinking-bird
+```
+
+### System Tray Controls
+
+Click the circle icon in the top bar to access:
+- **Status**: Shows current state (Active/Paused/Disabled)
+- **Enable/Disable**: Toggle auto-approval on/off
+- **Capture Area**: Shows current scan region
+- **Set Capture Area...**: Click and drag to select a custom scan region
+- **Reset to Default Area**: Restore the default scan region
+- **Exit**: Completely close the application
+
+### Keyboard Shortcut
+
+Press `Ctrl+C` in the terminal to gracefully exit.
+
+## Enable Autostart on Boot
+
+### Option 1: Using the helper script
+
+```bash
+# Enable autostart
+claude-drinking-bird-autostart enable
+
+# Disable autostart
+claude-drinking-bird-autostart disable
+
+# Check status
+claude-drinking-bird-autostart status
+```
+
+### Option 2: Using GNOME Tweaks
+
+1. Install GNOME Tweaks: `sudo apt install gnome-tweaks`
+2. Open GNOME Tweaks
+3. Go to "Startup Applications"
+4. Enable "Claude Drinking Bird"
+
+### Option 3: Manual Edit
+
+Edit `~/.config/autostart/claude-drinking-bird.desktop` and change:
+```
+X-GNOME-Autostart-enabled=false
+```
+to:
+```
+X-GNOME-Autostart-enabled=true
+```
+
+## Configuration
+
+Edit the configuration variables at the top of `claude_drinking_bird.py`:
+
+```python
+# Scan region (percentages 0.0 to 1.0)
+SCAN_TOP_PERCENT = 0.5      # Start from 50% down (bottom half)
+SCAN_BOTTOM_PERCENT = 0.95  # Scan to 95% (ignore bottom 5%)
+SCAN_LEFT_PERCENT = 0.05    # Start from 5% (ignore leftmost 5%)
+SCAN_RIGHT_PERCENT = 0.8    # Stop at 80% (ignore rightmost 20%)
+
+# Timing
+SCAN_INTERVAL_MS = 500      # Check every 500ms
+COOLDOWN_SECONDS = 1.0      # Wait after approval
+
+# Matching
+CONFIDENCE_THRESHOLD = 0.9  # Image matching confidence
+```
+
+## Troubleshooting
+
+### Application doesn't start
+
+1. Ensure all dependencies are installed
+2. Check if `~/.local/bin` is in your PATH:
+   ```bash
+   echo $PATH | grep -q "$HOME/.local/bin" || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+   source ~/.bashrc
+   ```
+
+### Not detecting prompts
+
+1. Verify reference images are in `~/.config/claude-drinking-bird/reference_images/`
+2. Try lowering `CONFIDENCE_THRESHOLD` (e.g., 0.8)
+3. Ensure the scan region includes where the button appears
+4. Take a new screenshot of the button at your current resolution/scaling
+
+### System tray icon not showing
+
+1. Install the AppIndicator extension for GNOME:
+   ```bash
+   sudo apt install gnome-shell-extension-appindicator
+   ```
+2. Enable it using GNOME Extensions app or Tweaks
+3. Log out and log back in
+
+### High CPU usage
+
+1. Increase `SCAN_INTERVAL_MS` (e.g., 1000 for 1 second)
+2. Narrow the scan region
+
+## Uninstall
+
+```bash
+# Remove installed files
+rm -rf ~/.local/share/claude-drinking-bird
+rm -f ~/.local/bin/claude-drinking-bird
+rm -f ~/.local/bin/claude-drinking-bird-autostart
+rm -f ~/.local/share/applications/claude-drinking-bird.desktop
+rm -f ~/.config/autostart/claude-drinking-bird.desktop
+
+# Optionally remove configuration (keeps your reference images)
+rm -rf ~/.config/claude-drinking-bird
+```
+
+## License
+
+MIT License - Use at your own risk.
+
+## Disclaimer
+
+This tool automatically approves permission prompts. Use responsibly and understand the security implications of auto-approving actions.
