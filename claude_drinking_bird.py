@@ -19,6 +19,15 @@ import subprocess
 import pyautogui
 from PIL import Image
 
+# Try to import pynput for global hotkey support
+try:
+    from pynput import keyboard
+    from pynput.keyboard import Key
+    HAS_PYNPUT = True
+except ImportError:
+    HAS_PYNPUT = False
+    print("Warning: pynput not available. Hotkey support disabled.")
+
 # Try to import AppIndicator3 for Ubuntu top bar integration
 try:
     import gi
@@ -34,19 +43,22 @@ except (ImportError, ValueError):
 # CONFIGURATION - Adjust these values as needed
 # ============================================================================
 
-# Scan region optimization (set to None to scan full screen)
-# These values are percentages (0.0 to 1.0)
-SCAN_TOP_PERCENT = 0.5      # Start scanning from 50% down (bottom half)
-SCAN_BOTTOM_PERCENT = 0.95  # Scan to 95% (ignore bottom 5%)
-SCAN_LEFT_PERCENT = 0.05    # Start from 5% (ignore leftmost 5%)
-SCAN_RIGHT_PERCENT = 0.8    # Stop at 80% (ignore rightmost 20%)
-
 # Timing configuration
 SCAN_INTERVAL_MS = 500      # Check every 500ms
 COOLDOWN_SECONDS = 1.0      # Wait 1 second after sending Enter
 
 # Image matching
 CONFIDENCE_THRESHOLD = 0.9  # Matching confidence (0.0 to 1.0)
+
+# Hotkey configuration (set to None to disable hotkey)
+# Modifiers: Key.cmd (Super), Key.shift, Key.ctrl, Key.alt
+# Default: Super+Shift+A
+if HAS_PYNPUT:
+    HOTKEY_MODIFIERS = frozenset([Key.shift, Key.alt])  # Shift+Alt
+    HOTKEY_KEY = 'y'
+else:
+    HOTKEY_MODIFIERS = None
+    HOTKEY_KEY = None
 
 # Reference images directory
 CONFIG_DIR = Path.home() / ".config" / "claude-drinking-bird"
@@ -69,11 +81,82 @@ class AppState:
         self.last_approve_time = 0
         self.indicator = None
         self.status_item = None
+        self.toggle_item = None  # Reference to toggle menu item
         self.capture_area_item = None
-        self.custom_region = None  # (x, y, width, height) or None for default
+        self.custom_region = None  # (x, y, width, height) or None for focused window
         self.lock = threading.Lock()
+        self.hotkey_listener = None
+        self.current_keys = set()  # Currently pressed keys for hotkey detection
 
 state = AppState()
+
+# ============================================================================
+# HOTKEY HANDLING
+# ============================================================================
+
+def toggle_enabled():
+    """Toggle the enabled state. Called from menu or hotkey."""
+    with state.lock:
+        state.enabled = not state.enabled
+        enabled = state.enabled
+
+    status = "enabled" if enabled else "disabled"
+    print(f"[{time.strftime('%H:%M:%S')}] Auto-approve {status}")
+
+    # Update menu item if available
+    if HAS_INDICATOR and state.toggle_item:
+        def update_menu():
+            state.toggle_item.set_label("Disable" if enabled else "Enable")
+        GLib.idle_add(update_menu)
+
+    update_indicator_icon()
+
+def on_hotkey_press(key):
+    """Handle key press for hotkey detection."""
+    if not HOTKEY_MODIFIERS or not HOTKEY_KEY:
+        return
+
+    # Normalize the key
+    try:
+        # For regular character keys
+        if hasattr(key, 'char') and key.char:
+            state.current_keys.add(key.char.lower())
+        else:
+            # For special keys (shift, ctrl, etc.)
+            state.current_keys.add(key)
+    except AttributeError:
+        state.current_keys.add(key)
+
+    # Check if hotkey combination is pressed
+    modifiers_pressed = HOTKEY_MODIFIERS.issubset(state.current_keys)
+    key_pressed = HOTKEY_KEY.lower() in state.current_keys
+
+    if modifiers_pressed and key_pressed:
+        toggle_enabled()
+        # Clear to prevent repeated triggers
+        state.current_keys.clear()
+
+def on_hotkey_release(key):
+    """Handle key release for hotkey detection."""
+    try:
+        if hasattr(key, 'char') and key.char:
+            state.current_keys.discard(key.char.lower())
+        else:
+            state.current_keys.discard(key)
+    except AttributeError:
+        state.current_keys.discard(key)
+
+def start_hotkey_listener():
+    """Start the global hotkey listener."""
+    if not HAS_PYNPUT or not HOTKEY_MODIFIERS or not HOTKEY_KEY:
+        return None
+
+    listener = keyboard.Listener(
+        on_press=on_hotkey_press,
+        on_release=on_hotkey_release
+    )
+    listener.start()
+    return listener
 
 # ============================================================================
 # CONFIGURATION FILE
@@ -221,21 +304,47 @@ def setup_reference_images():
 # SCREEN SCANNING
 # ============================================================================
 
-def get_scan_region() -> Optional[tuple]:
-    """Calculate the scan region based on configuration."""
-    # Use custom region if set
-    if state.custom_region:
-        return state.custom_region
+def get_focused_window_geometry() -> Optional[tuple]:
+    """
+    Get the geometry of the currently focused window.
+    Returns (x, y, width, height) or None if unable to determine.
+    """
+    try:
+        # Get the active window ID
+        result = subprocess.run(
+            ['xdotool', 'getactivewindow'],
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        if result.returncode != 0:
+            return None
 
-    # Otherwise use default percentages
-    screen_width, screen_height = pyautogui.size()
+        window_id = result.stdout.strip()
 
-    left = int(screen_width * SCAN_LEFT_PERCENT)
-    top = int(screen_height * SCAN_TOP_PERCENT)
-    width = int(screen_width * (SCAN_RIGHT_PERCENT - SCAN_LEFT_PERCENT))
-    height = int(screen_height * (SCAN_BOTTOM_PERCENT - SCAN_TOP_PERCENT))
+        # Get window geometry
+        result = subprocess.run(
+            ['xdotool', 'getwindowgeometry', '--shell', window_id],
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        if result.returncode != 0:
+            return None
 
-    return (left, top, width, height)
+        # Parse output like: X=100\nY=200\nWIDTH=800\nHEIGHT=600\n...
+        geometry = {}
+        for line in result.stdout.strip().split('\n'):
+            if '=' in line:
+                key, value = line.split('=', 1)
+                geometry[key] = int(value)
+
+        if all(k in geometry for k in ['X', 'Y', 'WIDTH', 'HEIGHT']):
+            return (geometry['X'], geometry['Y'], geometry['WIDTH'], geometry['HEIGHT'])
+        return None
+    except Exception:
+        return None
+
 
 def is_claude_window_focused() -> Optional[bool]:
     """
@@ -264,10 +373,14 @@ def is_claude_window_focused() -> Optional[bool]:
 
 def find_permission_prompt(reference_images: List[Path]) -> Optional[tuple]:
     """
-    Search for any of the reference images on screen.
+    Search for any of the reference images in the focused window.
     Returns the center coordinates if found, None otherwise.
     """
-    region = get_scan_region()
+    # Use custom region if set, otherwise use focused window geometry
+    if state.custom_region:
+        region = state.custom_region
+    else:
+        region = get_focused_window_geometry()
 
     for ref_image_path in reference_images:
         try:
@@ -383,15 +496,9 @@ def update_indicator_icon():
 
     GLib.idle_add(do_update)
 
-def on_toggle_clicked(menu_item):
-    """Handle toggle on/off."""
-    with state.lock:
-        state.enabled = not state.enabled
-        menu_item.set_label("Disable" if state.enabled else "Enable")
-
-    status = "enabled" if state.enabled else "disabled"
-    print(f"[{time.strftime('%H:%M:%S')}] Auto-approve {status}")
-    update_indicator_icon()
+def on_toggle_clicked(_):
+    """Handle toggle on/off from menu."""
+    toggle_enabled()
 
 def on_quit_clicked(_):
     """Handle quit button."""
@@ -484,6 +591,7 @@ def create_indicator():
     toggle_item = Gtk.MenuItem(label="Enable")
     toggle_item.connect("activate", on_toggle_clicked)
     menu.append(toggle_item)
+    state.toggle_item = toggle_item
 
     # Separator
     menu.append(Gtk.SeparatorMenuItem())
@@ -495,12 +603,12 @@ def create_indicator():
     state.capture_area_item = capture_area_item
 
     # Set capture area
-    set_area_item = Gtk.MenuItem(label="Set Capture Area...")
+    set_area_item = Gtk.MenuItem(label="Set Custom Area...")
     set_area_item.connect("activate", on_set_capture_area_clicked)
     menu.append(set_area_item)
 
     # Reset capture area
-    reset_area_item = Gtk.MenuItem(label="Reset to Default Area")
+    reset_area_item = Gtk.MenuItem(label="Reset to Default")
     reset_area_item.connect("activate", on_reset_capture_area_clicked)
     menu.append(reset_area_item)
 
@@ -529,9 +637,11 @@ def scanner_loop(reference_images: List[Path]):
     print(f"  - Confidence threshold: {CONFIDENCE_THRESHOLD}")
     print(f"  - Cooldown: {COOLDOWN_SECONDS}s")
 
-    region = get_scan_region()
-    if region:
-        print(f"  - Scan region: {region}")
+    if state.custom_region:
+        x, y, w, h = state.custom_region
+        print(f"  - Scan area: custom region {w}x{h} at ({x},{y})")
+    else:
+        print(f"  - Scan area: focused window")
 
     print(f"\nClick the system tray icon to enable. Press Ctrl+C to exit.\n")
 
@@ -640,6 +750,13 @@ def main():
         # Update capture area display if custom region loaded
         if state.custom_region:
             update_capture_area_menu()
+
+    # Start hotkey listener
+    if HAS_PYNPUT and HOTKEY_MODIFIERS and HOTKEY_KEY:
+        state.hotkey_listener = start_hotkey_listener()
+        print(f"\nHotkey: Shift+Alt+{HOTKEY_KEY.upper()} to toggle on/off")
+    else:
+        print("\nHotkey: disabled (pynput not available)")
 
     # Start scanner thread
     scanner_thread = threading.Thread(target=scanner_loop, args=(reference_images,), daemon=True)

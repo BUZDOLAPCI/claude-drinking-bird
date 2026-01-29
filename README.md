@@ -17,7 +17,8 @@ A background tool that automatically approves Claude Code permission prompts for
   - Cooldown between approvals to prevent rapid-fire
 - **Multiple reference images**: Support for different themes etc
 - **Audio feedback**: Plays a sound when auto-approving
-- **Optimized scanning**: Configurable scan region to reduce CPU usage
+- **Hotkey support**: Toggle on/off with Shift+Alt+Y (configurable)
+- **Optimized scanning**: By default scans only within the focused window bounds, with option to set a custom fixed region
 
 ## Installation
 
@@ -91,14 +92,15 @@ claude-drinking-bird
 Click the circle icon in the top bar to access:
 - **Status**: Shows current state (Active/Paused/Disabled)
 - **Enable/Disable**: Toggle auto-approval on/off
-- **Capture Area**: Shows current scan region
-- **Set Capture Area...**: Click and drag to select a custom scan region
-- **Reset to Default Area**: Restore the default scan region
+- **Capture Area**: Shows current scan region (default: focused window)
+- **Set Custom Area...**: Click and drag to select a custom fixed scan region
+- **Reset to Default**: Restore scanning within the focused window bounds
 - **Exit**: Completely close the application
 
-### Keyboard Shortcut
+### Keyboard Shortcuts
 
-Press `Ctrl+C` in the terminal to gracefully exit.
+- **Shift+Alt+Y**: Toggle auto-approval on/off (configurable, see Configuration)
+- **Ctrl+C**: Gracefully exit (in terminal)
 
 ## Enable Autostart on Boot
 
@@ -138,19 +140,29 @@ X-GNOME-Autostart-enabled=true
 Edit the configuration variables at the top of `claude_drinking_bird.py`:
 
 ```python
-# Scan region (percentages 0.0 to 1.0)
-SCAN_TOP_PERCENT = 0.5      # Start from 50% down (bottom half)
-SCAN_BOTTOM_PERCENT = 0.95  # Scan to 95% (ignore bottom 5%)
-SCAN_LEFT_PERCENT = 0.05    # Start from 5% (ignore leftmost 5%)
-SCAN_RIGHT_PERCENT = 0.8    # Stop at 80% (ignore rightmost 20%)
-
 # Timing
 SCAN_INTERVAL_MS = 500      # Check every 500ms
 COOLDOWN_SECONDS = 1.0      # Wait after approval
 
 # Matching
 CONFIDENCE_THRESHOLD = 0.9  # Image matching confidence
+
+# Hotkey (Shift+Alt+Y by default)
+# Modifiers: Key.cmd (Super), Key.shift, Key.ctrl, Key.alt
+HOTKEY_MODIFIERS = frozenset([Key.shift, Key.alt])
+HOTKEY_KEY = 'y'
+# Set HOTKEY_MODIFIERS = None to disable the hotkey
 ```
+
+### Scan Area Behavior
+
+By default, the tool scans only within the bounds of the currently focused window. This reduces CPU usage and prevents false positives from other applications.
+
+You can set a custom fixed scan region via the system tray menu ("Set Custom Area..."). This is useful if:
+- You want to scan a specific portion of the screen regardless of window position
+- The focused window detection isn't working correctly for your setup
+
+Custom regions are saved to `~/.config/claude-drinking-bird/config.json` and persist across restarts.
 
 ## Troubleshooting
 
@@ -167,8 +179,9 @@ CONFIDENCE_THRESHOLD = 0.9  # Image matching confidence
 
 1. Verify reference images are in `~/.config/claude-drinking-bird/reference_images/`
 2. Try lowering `CONFIDENCE_THRESHOLD` (e.g., 0.8)
-3. Ensure the scan region includes where the button appears
-4. Take a new screenshot of the button at your current resolution/scaling
+3. Ensure the Claude window is focused (the tool only scans within the focused window by default)
+4. If using a custom scan area, verify it covers where the button appears
+5. Take a new screenshot of the button at your current resolution/scaling
 
 ### System tray icon not showing
 
@@ -182,7 +195,7 @@ CONFIDENCE_THRESHOLD = 0.9  # Image matching confidence
 ### High CPU usage
 
 1. Increase `SCAN_INTERVAL_MS` (e.g., 1000 for 1 second)
-2. Narrow the scan region
+2. Use the default scan behavior (focused window only) rather than a custom full-screen region
 
 ## Uninstall
 
