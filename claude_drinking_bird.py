@@ -19,15 +19,6 @@ import subprocess
 import pyautogui
 from PIL import Image
 
-# Try to import pynput for global hotkey support
-try:
-    from pynput import keyboard
-    from pynput.keyboard import Key
-    HAS_PYNPUT = True
-except ImportError:
-    HAS_PYNPUT = False
-    print("Warning: pynput not available. Hotkey support disabled.")
-
 # Try to import AppIndicator3 for Ubuntu top bar integration
 try:
     import gi
@@ -49,16 +40,6 @@ COOLDOWN_SECONDS = 1.0      # Wait 1 second after sending Enter
 
 # Image matching
 CONFIDENCE_THRESHOLD = 0.9  # Matching confidence (0.0 to 1.0)
-
-# Hotkey configuration (set to None to disable hotkey)
-# Modifiers: Key.cmd (Super), Key.shift, Key.ctrl, Key.alt
-# Default: Super+Shift+A
-if HAS_PYNPUT:
-    HOTKEY_MODIFIERS = frozenset([Key.shift, Key.alt])  # Shift+Alt
-    HOTKEY_KEY = 'y'
-else:
-    HOTKEY_MODIFIERS = None
-    HOTKEY_KEY = None
 
 # Reference images directory
 CONFIG_DIR = Path.home() / ".config" / "claude-drinking-bird"
@@ -85,17 +66,15 @@ class AppState:
         self.capture_area_item = None
         self.custom_region = None  # (x, y, width, height) or None for focused window
         self.lock = threading.Lock()
-        self.hotkey_listener = None
-        self.current_keys = set()  # Currently pressed keys for hotkey detection
 
 state = AppState()
 
 # ============================================================================
-# HOTKEY HANDLING
+# TOGGLE FUNCTION
 # ============================================================================
 
 def toggle_enabled():
-    """Toggle the enabled state. Called from menu or hotkey."""
+    """Toggle the enabled state. Called from menu."""
     with state.lock:
         state.enabled = not state.enabled
         enabled = state.enabled
@@ -110,53 +89,6 @@ def toggle_enabled():
         GLib.idle_add(update_menu)
 
     update_indicator_icon()
-
-def on_hotkey_press(key):
-    """Handle key press for hotkey detection."""
-    if not HOTKEY_MODIFIERS or not HOTKEY_KEY:
-        return
-
-    # Normalize the key
-    try:
-        # For regular character keys
-        if hasattr(key, 'char') and key.char:
-            state.current_keys.add(key.char.lower())
-        else:
-            # For special keys (shift, ctrl, etc.)
-            state.current_keys.add(key)
-    except AttributeError:
-        state.current_keys.add(key)
-
-    # Check if hotkey combination is pressed
-    modifiers_pressed = HOTKEY_MODIFIERS.issubset(state.current_keys)
-    key_pressed = HOTKEY_KEY.lower() in state.current_keys
-
-    if modifiers_pressed and key_pressed:
-        toggle_enabled()
-        # Clear to prevent repeated triggers
-        state.current_keys.clear()
-
-def on_hotkey_release(key):
-    """Handle key release for hotkey detection."""
-    try:
-        if hasattr(key, 'char') and key.char:
-            state.current_keys.discard(key.char.lower())
-        else:
-            state.current_keys.discard(key)
-    except AttributeError:
-        state.current_keys.discard(key)
-
-def start_hotkey_listener():
-    """Start the global hotkey listener."""
-    if not HAS_PYNPUT or not HOTKEY_MODIFIERS or not HOTKEY_KEY:
-        return None
-
-    listener = keyboard.Listener(
-        on_press=on_hotkey_press,
-        on_release=on_hotkey_release
-    )
-    listener.start()
-    return listener
 
 # ============================================================================
 # CONFIGURATION FILE
@@ -750,13 +682,6 @@ def main():
         # Update capture area display if custom region loaded
         if state.custom_region:
             update_capture_area_menu()
-
-    # Start hotkey listener
-    if HAS_PYNPUT and HOTKEY_MODIFIERS and HOTKEY_KEY:
-        state.hotkey_listener = start_hotkey_listener()
-        print(f"\nHotkey: Shift+Alt+{HOTKEY_KEY.upper()} to toggle on/off")
-    else:
-        print("\nHotkey: disabled (pynput not available)")
 
     # Start scanner thread
     scanner_thread = threading.Thread(target=scanner_loop, args=(reference_images,), daemon=True)

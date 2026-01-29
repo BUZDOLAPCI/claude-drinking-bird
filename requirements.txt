@@ -2,4 +2,3 @@ pyautogui>=0.9.54
 Pillow>=9.0.0
 python-xlib>=0.33
 opencv-python>=4.5.0
-pynput>=1.7.6

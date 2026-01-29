@@ -17,7 +17,6 @@ A background tool that automatically approves Claude Code permission prompts for
   - Cooldown between approvals to prevent rapid-fire
 - **Multiple reference images**: Support for different themes etc
 - **Audio feedback**: Plays a sound when auto-approving
-- **Hotkey support**: Toggle on/off with Shift+Alt+Y (configurable)
 - **Optimized scanning**: By default scans only within the focused window bounds, with option to set a custom fixed region
 
 ## Installation
@@ -97,11 +96,6 @@ Click the circle icon in the top bar to access:
 - **Reset to Default**: Restore scanning within the focused window bounds
 - **Exit**: Completely close the application
 
-### Keyboard Shortcuts
-
-- **Shift+Alt+Y**: Toggle auto-approval on/off (configurable, see Configuration)
-- **Ctrl+C**: Gracefully exit (in terminal)
-
 ## Enable Autostart on Boot
 
 ### Option 1: Using the helper script
@@ -146,12 +140,6 @@ COOLDOWN_SECONDS = 1.0      # Wait after approval
 
 # Matching
 CONFIDENCE_THRESHOLD = 0.9  # Image matching confidence
-
-# Hotkey (Shift+Alt+Y by default)
-# Modifiers: Key.cmd (Super), Key.shift, Key.ctrl, Key.alt
-HOTKEY_MODIFIERS = frozenset([Key.shift, Key.alt])
-HOTKEY_KEY = 'y'
-# Set HOTKEY_MODIFIERS = None to disable the hotkey
 ```
 
 ### Scan Area Behavior
