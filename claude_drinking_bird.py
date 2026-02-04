@@ -35,11 +35,14 @@ except (ImportError, ValueError):
 # ============================================================================
 
 # Timing configuration
-SCAN_INTERVAL_MS = 500      # Check every 500ms
-COOLDOWN_SECONDS = 1.0      # Wait 1 second after sending Enter
+SCAN_INTERVAL_MS = 300      # Check every 300ms
+COOLDOWN_SECONDS = 0.5      # Wait 0.5 seconds after sending Enter
 
 # Image matching
 CONFIDENCE_THRESHOLD = 0.9  # Matching confidence (0.0 to 1.0)
+
+# Sound
+SOUND_ENABLED = False  # Play sound on auto-approval
 
 # Reference images directory
 CONFIG_DIR = Path.home() / ".config" / "claude-drinking-bird"
@@ -336,6 +339,8 @@ def find_permission_prompt(reference_images: List[Path]) -> Optional[tuple]:
 
 def play_approval_sound():
     """Play a sound to indicate auto-approval."""
+    if not SOUND_ENABLED:
+        return
     try:
         # Try using paplay (PulseAudio) with system sounds
         sound_paths = [
